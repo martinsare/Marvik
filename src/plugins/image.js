@@ -1,5 +1,4 @@
 import { reactIfEnabled } from '../utils/pendingActions.js';
-import fetch from 'node-fetch';
 
 export default {
   name: 'image',

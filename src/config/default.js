@@ -19,6 +19,7 @@ const requiredVars = {
   MAX_COMMAND_COOLDOWN: '3000',
   STICKER_PACK: 'Marvik',
   STICKER_AUTHOR: 'Are Martins',
+  GROQ_API_KEY: '',
   // Auto features defaults
   AUTO_TYPING: 'false',
   ALWAYS_ONLINE: 'false',

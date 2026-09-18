@@ -1,4 +1,4 @@
-// Dependency check and install must run before any other imports!
+// Dependency check and install must run before any other third-party imports!
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
@@ -49,90 +49,87 @@ function ensureDependencies() {
 
 ensureDependencies();
 
-import Bot from './core/Bot.js';
-import config from './config/default.js';
-import logger from './utils/logger.js';
-import watchFilesAndFolders from './utils/watcher.js';
-import dotenv from 'dotenv';
-import envMemory from './utils/envMemory.js';
-import { recordLifecycleEvent } from './state/lifecycle.js';
-dotenv.config();
-
 /**
- * Main entry point for Marvik
+ * Main bootstrap for Marvik after dependencies are guaranteed
  */
+(async () => {
+  const dotenv = (await import('dotenv')).default;
+  dotenv.config();
 
-const bot = new Bot(config);
+  const { default: Bot } = await import('./core/Bot.js');
+  const { default: config } = await import('./config/default.js');
+  const { default: logger } = await import('./utils/logger.js');
+  const { default: watchFilesAndFolders } = await import('./utils/watcher.js');
+  const { default: envMemory } = await import('./utils/envMemory.js');
+  const { recordLifecycleEvent } = await import('./state/lifecycle.js');
 
-// Hot-reload plugins and .env
-watchFilesAndFolders({
-  files: ['.env'],
-  folders: ['./src/plugins'],
-  async onChange(type, changedPath) {
-    logger.info(`Detected change in ${changedPath}. Reloading...`);
-    if (changedPath.endsWith('.env')) {
-      dotenv.config();
-      envMemory.reload(); // reload in-memory .env
-      Object.assign(config, (await import('./config/default.js')).default);
-      logger.info('Reloaded .env, envMemory, and config');
-    }
-    if (changedPath.includes('plugins')) {
-      const pluginFile = path.basename(changedPath);
-      if (pluginFile.endsWith('.js')) {
-        // Try to find plugin by filename
-        let found = false;
-        for (const plugin of bot.pluginLoader.getAll()) {
-          if (plugin.filename === pluginFile) {
-            await bot.pluginLoader.reload(plugin.name);
-            logger.info(`Reloaded plugin: ${plugin.name}`);
-            found = true;
-            break;
+  const bot = new Bot(config);
+
+  // Hot-reload plugins and .env
+  watchFilesAndFolders({
+    files: ['.env'],
+    folders: ['./src/plugins'],
+    async onChange(type, changedPath) {
+      logger.info(`Detected change in ${changedPath}. Reloading...`);
+      if (changedPath.endsWith('.env')) {
+        dotenv.config();
+        envMemory.reload(); // reload in-memory .env
+        Object.assign(config, (await import('./config/default.js')).default);
+        logger.info('Reloaded .env, envMemory, and config');
+      }
+      if (changedPath.includes('plugins')) {
+        const pluginFile = path.basename(changedPath);
+        if (pluginFile.endsWith('.js')) {
+          let found = false;
+          for (const plugin of bot.pluginLoader.getAll()) {
+            if (plugin.filename === pluginFile) {
+              await bot.pluginLoader.reload(plugin.name);
+              logger.info(`Reloaded plugin: ${plugin.name}`);
+              found = true;
+              break;
+            }
           }
-        }
-        if (!found) {
-          // New plugin file, try to load it
-          await bot.pluginLoader.load(pluginFile);
-          logger.info(`Loaded new plugin: ${pluginFile}`);
+          if (!found) {
+            await bot.pluginLoader.load(pluginFile);
+            logger.info(`Loaded new plugin: ${pluginFile}`);
+          }
         }
       }
     }
-  }
-});
-
-// Handle graceful shutdown for Baileys session safety
-let isShuttingDown = false;
-
-function shutdownHandler(signal, exitCode = 0) {
-  if (isShuttingDown) return;
-  isShuttingDown = true;
-  logger.info(`Received ${signal}, shutting down gracefully...`);
-  recordLifecycleEvent('shutdown_signal', { signal, exitCode });
-  bot.stop().then(() => process.exit(exitCode)).catch(() => process.exit(1));
-}
-
-process.on('SIGINT', () => shutdownHandler('SIGINT'));
-process.on('SIGTERM', () => shutdownHandler('SIGTERM'));
-
-// Handle uncaught errors
-process.on('uncaughtException', (error) => {
-  logger.error({ error }, 'Uncaught Exception');
-  recordLifecycleEvent('uncaught_exception', {
-    message: error?.message || String(error),
-    name: error?.name || 'Error'
   });
-  shutdownHandler('uncaughtException', 1);
-});
 
-process.on('unhandledRejection', (reason, promise) => {
-  const errorDetails = reason instanceof Error 
-    ? { message: reason.message, stack: reason.stack, name: reason.name }
-    : { reason: String(reason) };
-  logger.error(errorDetails, 'Unhandled Rejection');
-  recordLifecycleEvent('unhandled_rejection', errorDetails);
-});
+  // Handle graceful shutdown for Baileys session safety
+  let isShuttingDown = false;
 
-// Start the bot
-(async () => {
+  function shutdownHandler(signal, exitCode = 0) {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    logger.info(`Received ${signal}, shutting down gracefully...`);
+    recordLifecycleEvent('shutdown_signal', { signal, exitCode });
+    bot.stop().then(() => process.exit(exitCode)).catch(() => process.exit(1));
+  }
+
+  process.on('SIGINT', () => shutdownHandler('SIGINT'));
+  process.on('SIGTERM', () => shutdownHandler('SIGTERM'));
+
+  // Handle uncaught errors
+  process.on('uncaughtException', (error) => {
+    logger.error({ error }, 'Uncaught Exception');
+    recordLifecycleEvent('uncaught_exception', {
+      message: error?.message || String(error),
+      name: error?.name || 'Error'
+    });
+    shutdownHandler('uncaughtException', 1);
+  });
+
+  process.on('unhandledRejection', (reason) => {
+    const errorDetails = reason instanceof Error 
+      ? { message: reason.message, stack: reason.stack, name: reason.name }
+      : { reason: String(reason) };
+    logger.error(errorDetails, 'Unhandled Rejection');
+    recordLifecycleEvent('unhandled_rejection', errorDetails);
+  });
+
   try {
     await bot.start();
   } catch (error) {

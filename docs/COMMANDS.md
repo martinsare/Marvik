@@ -143,9 +143,17 @@ Download Instagram media (post/reel/video)
 
 Download Pinterest media (image/video) with quality selection
 
-- Usage: `.pinterest <url>`
+- Usage: `.pinterest <pin url>`
 - Aliases: `pinsrc`, `pint`
 - Plugin: `src/plugins/pinterest.js`
+
+### `play`
+
+Search YouTube for a song and send it as audio with selection
+
+- Usage: `.play <song name>`
+- Aliases: `song`, `music`
+- Plugin: `src/plugins/youtube.js`
 
 ### `snap`
 
@@ -364,9 +372,9 @@ Bind a command to a sticker
 
 ### `sticker`
 
-Convert an image to a sticker
+Convert an image or supported Pinterest pin to a sticker
 
-- Usage: `.sticker (reply to image/video) or .sticker <pinterest url>`
+- Usage: `.sticker (reply to image/video) | .sticker <pinterest pin url>`
 - Aliases: `st`, `s`
 - Plugin: `src/plugins/sticker.js`
 
@@ -710,6 +718,14 @@ Save and manage pinned messages for this chat
 - Aliases: `pins`
 - Plugin: `src/plugins/pins.js`
 
+### `pincode`
+
+Look up a postal code using a country code
+
+- Usage: `.pincode <countryCode> <postalCode>`
+- Aliases: `postcode`, `zipcode`, `postal`
+- Plugin: `src/plugins/pincode.js`
+
 ### `ping`
 
 Check if the bot is alive
@@ -773,7 +789,7 @@ Unstar a replied message in WhatsApp
 
 Find lyrics for a song
 
-- Usage: `.lyrics <song name>`
+- Usage: `.lyrics <artist - song> or .lyrics <song name>`
 - Aliases: none
 - Plugin: `src/plugins/lyrics.js`
 

@@ -1,6 +1,5 @@
 import ai from '../utils/ai.js';
 import { reactIfEnabled } from '../utils/pendingActions.js';
-import fetch from 'node-fetch';
 import { extractMessageText, getQuotedMessageObject } from '../utils/messageUtils.js';
 import { getAiModeState, patchAiModeChat } from '../state/ai.js';
 import logger from '../utils/logger.js';
@@ -398,7 +397,7 @@ Quoted message: "${quotedText}"`;
                 ]
               }
             ],
-            model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+            model: 'llama-3.2-11b-vision-preview',
             temperature: 0.7,
             max_tokens: 1024
           });

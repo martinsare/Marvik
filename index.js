@@ -146,19 +146,28 @@ function startBot(entryPoint = 'src/index.js') {
     botProcess = null;
   }
 
+  const startTime = Date.now();
   managerLogger.info(`Starting bot: ${entryPoint}`);
   botProcess = spawn('node', [entryPoint], { stdio: 'inherit' });
 
   botProcess.on('exit', (code, signal) => {
-    managerLogger.warn(`Bot exited with code ${code}, signal ${signal}`);
+    const uptime = Date.now() - startTime;
+    managerLogger.warn(`Bot exited with code ${code}, signal ${signal} (ran for ${Math.round(uptime / 1000)}s)`);
 
     if (existsSync('.restart_flag')) {
       managerLogger.info('Restart flag detected - clearing flag and restarting...');
       try { unlinkSync('.restart_flag'); } catch {}
     }
 
-    managerLogger.info('ReStarting Marvik...');
-    startBot(entryPoint);
+    const delayMs = uptime < 3000 ? 2500 : 500;
+    if (delayMs > 500) {
+      managerLogger.info(`Short run detected; waiting ${delayMs}ms before restart...`);
+    }
+
+    setTimeout(() => {
+      managerLogger.info('ReStarting Marvik...');
+      startBot(entryPoint);
+    }, delayMs);
   });
 
   botProcess.on('error', (error) => {

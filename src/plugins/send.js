@@ -57,6 +57,7 @@ export default {
   description: 'Send owner status to user when they reply with send',
   version: '2.0.0',
   author: 'Are Martins',
+  commands: [],
 
   async onMessage(ctx) {
     if (ctx.platform !== 'whatsapp' || !ctx.text) return;

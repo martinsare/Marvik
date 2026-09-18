@@ -40,8 +40,14 @@ export default {
           headers: { 'User-Agent': 'Mozilla/5.0' }
         }
       );
-      if (response.data && response.data[0] && response.data[0][0]) {
-        return { success: true, text: response.data[0][0][0], fromLang: response.data[2] || 'auto' };
+      if (response.data && Array.isArray(response.data[0])) {
+        const fullTranslation = response.data[0]
+          .map((item) => (Array.isArray(item) ? item[0] : ''))
+          .filter(Boolean)
+          .join('');
+        if (fullTranslation) {
+          return { success: true, text: fullTranslation, fromLang: response.data[2] || 'auto' };
+        }
       }
       return { success: false, error: 'Translation failed' };
     } catch (e) {
