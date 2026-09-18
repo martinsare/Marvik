@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
+    "app": "node app.js",
     "docs:commands": "node scripts/generate-commands-docs.mjs",
     "test": "echo \"No tests yet\" && exit 0"
   },

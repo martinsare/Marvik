@@ -40,6 +40,7 @@ export default class WhatsAppAdapter extends BaseAdapter {
     this.phoneNumber = null;
     this.isFirstPairingAttempt = true;
     this.authFailures = 0;
+    this.reconnectAttempts = 0;
     this.contacts = new Map();
   }
 
@@ -211,10 +212,20 @@ export default class WhatsAppAdapter extends BaseAdapter {
     await this.connectWithAuth(sessionPath);
   }
 
+  async getBaileysVersion() {
+    try {
+      const { version } = await fetchLatestBaileysVersion();
+      return version;
+    } catch {
+      return [2, 3000, 1015901307];
+    }
+  }
+
   async connectWithCredentials(sessionPath) {
     sessionPath = this.getWhatsAppSessionPath();
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
     const { version } = await fetchLatestBaileysVersion();
+    const version = await this.getBaileysVersion();
     const alwaysOnline = process.env.ALWAYS_ONLINE === 'true';
     this._alwaysOnline = alwaysOnline;
     this.client = makeWASocket({
@@ -224,6 +235,12 @@ export default class WhatsAppAdapter extends BaseAdapter {
       logger: this.baileysLogger,
       generateHighQualityLinkPreview: true,
       markOnlineOnConnect: false, // Default to false
+      markOnlineOnConnect: false,
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      keepAliveIntervalMs: 25000,
+      retryRequestDelayMs: 250,
+      maxMsgRetryCount: 5,
       getMessage: async (key) => {
         const msg = memoryStore.getMessage('whatsapp', key.remoteJid, key.id);
         if (msg?.message) return msg;
@@ -240,6 +257,7 @@ export default class WhatsAppAdapter extends BaseAdapter {
     sessionPath = this.getWhatsAppSessionPath();
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
     const { version } = await fetchLatestBaileysVersion();
+    const version = await this.getBaileysVersion();
     const alwaysOnline = process.env.ALWAYS_ONLINE === 'true';
     this._alwaysOnline = alwaysOnline;
     this.client = makeWASocket({
@@ -250,6 +268,12 @@ export default class WhatsAppAdapter extends BaseAdapter {
       printQRInTerminal: false,
       generateHighQualityLinkPreview: true,
       markOnlineOnConnect: false, // Default to false
+      markOnlineOnConnect: false,
+      connectTimeoutMs: 60000,
+      defaultQueryTimeoutMs: 60000,
+      keepAliveIntervalMs: 25000,
+      retryRequestDelayMs: 250,
+      maxMsgRetryCount: 5,
       getMessage: async (key) => {
         const msg = memoryStore.getMessage('whatsapp', key.remoteJid, key.id);
         if (msg?.message) return msg;
@@ -359,13 +383,19 @@ export default class WhatsAppAdapter extends BaseAdapter {
           // Ignore presence update errors
         }
         
+        this.reconnectAttempts = 0;
+        this.authFailures = 0;
         this.emit('ready');
       }
 
       if (connection === 'close') {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const error = lastDisconnect?.error;
+        const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+
         if (statusCode === DisconnectReason.restartRequired || 
             (this.pairingCodeRequested && statusCode !== DisconnectReason.loggedOut)) {
+            (this.pairingCodeRequested && !isLoggedOut)) {
           this.isFirstPairingAttempt = false;
           this.pairingCodeRequested = false;
           await delay(1000);
@@ -373,6 +403,8 @@ export default class WhatsAppAdapter extends BaseAdapter {
           return;
         }
         if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+
+        if (isLoggedOut) {
           this.authFailures++;
           if (this.authFailures >= 5) {
             this.logger.info('Clearing session after 5 failed attempts and restarting...');
@@ -393,7 +425,25 @@ export default class WhatsAppAdapter extends BaseAdapter {
         const shouldReconnect = (lastDisconnect?.error instanceof Boom) && statusCode !== DisconnectReason.loggedOut;
         if (shouldReconnect) {
           await delay(5000);
+
+        // Automatic reconnection for bad internet, stream errors, timeouts, socket drops
+        this.reconnectAttempts++;
+        const backoffMs = Math.min(3000 * Math.pow(1.4, Math.min(this.reconnectAttempts, 6)), 20000);
+        this.logger.warn({
+          reason: error?.message || 'Network disconnected',
+          statusCode,
+          attempt: this.reconnectAttempts,
+          reconnectInMs: Math.round(backoffMs)
+        }, 'WhatsApp connection dropped. Auto-reconnecting in background...');
+
+        await delay(backoffMs);
+        try {
           await this.connect();
+        } catch (err) {
+          this.logger.error({ error: err?.message }, 'Reconnect attempt failed, will retry next cycle');
+          setTimeout(() => {
+            this.connect().catch(() => {});
+          }, 5000);
         }
       }
     });
