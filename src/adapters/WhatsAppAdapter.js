@@ -224,7 +224,6 @@ export default class WhatsAppAdapter extends BaseAdapter {
   async connectWithCredentials(sessionPath) {
     sessionPath = this.getWhatsAppSessionPath();
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-    const { version } = await fetchLatestBaileysVersion();
     const version = await this.getBaileysVersion();
     const alwaysOnline = process.env.ALWAYS_ONLINE === 'true';
     this._alwaysOnline = alwaysOnline;
@@ -234,7 +233,6 @@ export default class WhatsAppAdapter extends BaseAdapter {
       browser: Browsers.macOS('Chrome'),
       logger: this.baileysLogger,
       generateHighQualityLinkPreview: true,
-      markOnlineOnConnect: false, // Default to false
       markOnlineOnConnect: false,
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
@@ -256,7 +254,6 @@ export default class WhatsAppAdapter extends BaseAdapter {
   async connectWithAuth(sessionPath) {
     sessionPath = this.getWhatsAppSessionPath();
     const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-    const { version } = await fetchLatestBaileysVersion();
     const version = await this.getBaileysVersion();
     const alwaysOnline = process.env.ALWAYS_ONLINE === 'true';
     this._alwaysOnline = alwaysOnline;
@@ -267,7 +264,6 @@ export default class WhatsAppAdapter extends BaseAdapter {
       logger: this.baileysLogger,
       printQRInTerminal: false,
       generateHighQualityLinkPreview: true,
-      markOnlineOnConnect: false, // Default to false
       markOnlineOnConnect: false,
       connectTimeoutMs: 60000,
       defaultQueryTimeoutMs: 60000,
@@ -394,7 +390,6 @@ export default class WhatsAppAdapter extends BaseAdapter {
         const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
 
         if (statusCode === DisconnectReason.restartRequired || 
-            (this.pairingCodeRequested && statusCode !== DisconnectReason.loggedOut)) {
             (this.pairingCodeRequested && !isLoggedOut)) {
           this.isFirstPairingAttempt = false;
           this.pairingCodeRequested = false;
@@ -402,7 +397,6 @@ export default class WhatsAppAdapter extends BaseAdapter {
           await this.connectWithAuth(sessionPath);
           return;
         }
-        if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
 
         if (isLoggedOut) {
           this.authFailures++;
@@ -422,9 +416,6 @@ export default class WhatsAppAdapter extends BaseAdapter {
           }
           return;
         }
-        const shouldReconnect = (lastDisconnect?.error instanceof Boom) && statusCode !== DisconnectReason.loggedOut;
-        if (shouldReconnect) {
-          await delay(5000);
 
         // Automatic reconnection for bad internet, stream errors, timeouts, socket drops
         this.reconnectAttempts++;
